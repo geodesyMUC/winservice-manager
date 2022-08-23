@@ -38,14 +38,19 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
         task,
         "/RL",
         "HIGHEST",
-        "/RU",
-        os.getenv("USERNAME"),
         "/EC",
         "Application",
         "/MO",
         "*[System/EventID=999]",
         "/F",
     ]
+
+    # Add run as username to cmd (if possible)
+    user = os.getenv("USERNAME")
+    if user:
+        command.insert(10, "/RU")
+        command.insert(11, user)
+
     with subprocess.Popen(
         command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
     ) as proc:
