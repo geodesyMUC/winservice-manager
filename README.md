@@ -49,6 +49,15 @@ to learn more about the required input parameters of the command.
 
 Note that the "`*`" wildcard character is appended to the input service name.  In this way, it is possible to match multiple services at once by not using a complete service name.
 
+### Start and stop services
+
+Once the scheduled tasks are set up, you can start/stop the Windows service with the following commands:
+
+```console
+start-winservice <SERVICE NAME>
+
+stop-winservice <SERVICE NAME>
+```
 
 ## Author
 

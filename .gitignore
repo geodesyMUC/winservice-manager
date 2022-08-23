@@ -21,4 +21,4 @@ dmypy.json
 .vscode/
 
 # test scripts
-
+**/testing

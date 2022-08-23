@@ -2,10 +2,12 @@
 authors = ["Dav <50445297+geodesyMUC@users.noreply.github.com>"]
 description = "Scripts for managing Windows Services, using scheduled tasks"
 name = "winservice-manager"
-version = "0.1.2"
+version = "0.2.0"
 
 [tool.poetry.scripts]
 create-schtasks = "winservice_manager.setup_schtasks:main"
+start-winservice = "winservice_manager.manage_services:cmd_start_service"
+stop-winservice = "winservice_manager.manage_services:cmd_stop_service"
 
 [tool.poetry.dependencies]
 python = "^3.9"
