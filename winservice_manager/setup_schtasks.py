@@ -9,6 +9,12 @@ import os
 from winservice_manager.utils import is_admin, log
 
 
+def _get_schtask_name(task: str, service: str) -> str:
+    # Returns the formatted schtask name
+    # task = a string describing the action (START, STOP, ...)
+    return "-".join([task, service])
+
+
 def create_scheduled_script_task(service_name: str, task_name: str, path: str) -> None:
     """
     Creates scheduled task with the input name,
@@ -90,12 +96,12 @@ def main(
 
     create_scheduled_script_task(
         args.service_name,
-        "-".join(["START", args.service_name]),
+        _get_schtask_name("START", args.service_name),
         path_start_wservice_script,
     )
     create_scheduled_script_task(
         args.service_name,
-        "-".join(["STOP", args.service_name]),
+        _get_schtask_name("STOP", args.service_name),
         path_stop_wservice_script,
     )
 
