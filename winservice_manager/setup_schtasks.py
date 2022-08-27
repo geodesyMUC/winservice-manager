@@ -4,6 +4,7 @@ Functions to set up scheduled tasks
 import argparse
 import subprocess
 import os
+from pathlib import Path
 
 # Local packages
 from winservice_manager.utils import is_admin, log
@@ -81,10 +82,10 @@ def arg_parser() -> argparse.ArgumentParser:
 
 def main(
     path_start_wservice_script: str = os.path.join(
-        os.getcwd(), "scripts", "start-service.ps1"
+        Path(__file__).parent, "scripts", "start-service.ps1"
     ),
     path_stop_wservice_script: str = os.path.join(
-        os.getcwd(), "scripts", "stop-service.ps1"
+        Path(__file__).parent, "scripts", "stop-service.ps1"
     ),
 ) -> None:
     """
