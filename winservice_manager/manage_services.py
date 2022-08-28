@@ -6,6 +6,7 @@ import subprocess
 from typing import List
 import fnmatch
 import time
+import sys
 import psutil
 
 # Local imports
@@ -34,7 +35,7 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
     services = get_matching_services(service_name)
     if not services:
         log("No matching service(s) to check")
-        return True
+        return False
 
     # Initialise the list of services that are ok (have target status)
     services_ok: List[str] = []
@@ -46,7 +47,6 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
 
     # As long as not ALL services have the target status
     while len(services_ok) < n_services:
-
         # To prevent an infinite loop if some service doesn't ever
         # reach the target status
         if time.time() > t_start + max_wait:
@@ -89,18 +89,24 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
 
 def cmd_start_service() -> None:
     """
-    Wrapper around start_service, parses command line arguments
+    Wrapper around start_service, takes service name from command line arguments.
+
+    Exits with exit code 1 if service was not started successfully.
     """
     args = arg_parser().parse_args()
-    start_service(args.service_name)
+    if not start_service(args.service_name):
+        sys.exit(1)
 
 
 def cmd_stop_service() -> None:
     """
-    Wrapper around stop_service, parses command line arguments
+    Wrapper around stop_service, takes service name from command line arguments.
+
+    Exits with exit code 1 if service was not stopped successfully.
     """
     args = arg_parser().parse_args()
-    stop_service(args.service_name)
+    if not stop_service(args.service_name):
+        sys.exit(1)
 
 
 def get_matching_services(service_name: str) -> List[str]:
@@ -129,22 +135,24 @@ def get_service_info(service_name: str, key: str) -> str:
     return psutil.win_service_get(service_name).as_dict()[key]
 
 
-def start_service(service: str) -> None:
+def start_service(service: str) -> bool:
     """
-    Starts a service by running the corresponding scheduled task
+    Starts a service by running the corresponding scheduled task.
+
+    Returns True if successful, and False if service could not be started.
     """
-    # TODO return some status info
     run_scheduled_task(_get_schtask_name("START", service))
-    check_for_service_status(service, "running")
+    return check_for_service_status(service, "running")
 
 
-def stop_service(service: str) -> None:
+def stop_service(service: str) -> bool:
     """
-    Stops a service by running the corresponding scheduled tasks
+    Stops a service by running the corresponding scheduled tasks.
+
+    Returns True if successful, and False if service could not be stopped.
     """
-    # TODO return some status info
     run_scheduled_task(_get_schtask_name("STOP", service))
-    check_for_service_status(service, "stopped")
+    return check_for_service_status(service, "stopped")
 
 
 def run_scheduled_task(name: str):
