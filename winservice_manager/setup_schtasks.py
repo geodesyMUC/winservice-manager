@@ -57,8 +57,8 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
     ) as proc:
         stdout = proc.communicate()[0].decode()
 
-    # German and english locale
-    if ("ERFOLGREICH" in stdout) or ("SUCCESS" in stdout):
+    # English locale only
+    if "SUCCESS" in stdout:
         log(f"Scheduled task '{task_name}' created successfully")
         return
 
