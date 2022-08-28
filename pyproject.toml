@@ -2,7 +2,7 @@
 authors = ["Dav <50445297+geodesyMUC@users.noreply.github.com>"]
 description = "Scripts for managing Windows Services, using scheduled tasks"
 name = "winservice-manager"
-version = "0.3.0-alpha.3"
+version = "0.3.0-alpha.4"
 
 [tool.poetry.scripts]
 create-schtasks = "winservice_manager.setup_schtasks:main"

@@ -59,10 +59,10 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
 
     # English locale only
     if "SUCCESS" in stdout:
-        log(f"Scheduled task '{task_name}' created successfully")
+        log(f"Scheduled task '{task_name}' created successfully", "ok")
         return
 
-    log(f"Scheduled task '{task_name}' could not be created")
+    log(f"Scheduled task '{task_name}' could not be created", "error")
     return
 
 
@@ -94,10 +94,11 @@ def main(
 
     # Parse the input arguments
     args = arg_parser().parse_args()
+    log(f"Creating scheduled tasks for '{args.service_name}*'", "info")
 
     if not is_admin():
         # Scheduled tasks can ONLY be created as admin
-        log("Error: You must run this script as admin!")
+        log("You must run this as admin!", "error")
         return
 
     create_scheduled_script_task(
@@ -111,7 +112,7 @@ def main(
         path_stop_wservice_script,
     )
 
-    log("Script finished")
+    log("Scheduled tasks created", "ok")
 
 
 if __name__ == "__main__":

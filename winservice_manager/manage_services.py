@@ -14,7 +14,9 @@ from winservice_manager.setup_schtasks import _get_schtask_name
 from winservice_manager.utils import log
 
 
-def check_for_service_status(service_name, status: str, max_wait: int = 30) -> bool:
+def check_for_service_status(
+    service_name: str, status: str, max_wait: int = 30
+) -> bool:
     """
     Waits until all services that match the service name have the target status
     """
@@ -34,7 +36,7 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
     # Get the services of interest, and return if there aren't any
     services = get_matching_services(service_name)
     if not services:
-        log("No matching service(s) to check")
+        log(f"No matching service(s) '{service_name}' found to check", "error")
         return False
 
     # Initialise the list of services that are ok (have target status)
@@ -42,7 +44,6 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
     # and remember the number of services we need to monitor
     n_services = len(services)
 
-    # Remember the current time
     t_start = time.time()
 
     # As long as not ALL services have the target status
@@ -51,19 +52,21 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
         # reach the target status
         if time.time() > t_start + max_wait:
             log(
-                f"Error: Timeout while waiting for {services}"
-                + f" to reach target status '{status}'"
+                f"Timeout while waiting for {services}"
+                + f" to reach target status '{status}'",
+                "error",
             )
             return False
 
         # Find out which services are already ok
         for service in services:
             if get_service_info(service, "status") == status:
-                log(f"Service {service} {status}")
+                log(f"Service {service} {status}", "ok")
                 # Add it to the list of services that are ok
                 services_ok.append(service)
+                continue
 
-        # Remove ok services
+        # Remove ok services from monitor list
         for service_ok in services_ok:
             try:
                 services.remove(service_ok)
@@ -71,7 +74,7 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
                 # Case when service was already removed
                 pass
 
-        # Wait 1 second before checking again
+        # Wait 1 second
         time.sleep(1)
 
         waiting_time = round(t_start + max_wait - time.time())
@@ -79,11 +82,15 @@ def check_for_service_status(service_name, status: str, max_wait: int = 30) -> b
             # Only print this every 5s
             # and if there are still services that we are waiting for
             log(
-                f"Waiting {round(t_start + max_wait - time.time())}s for {services} "
-                + f"to reach '{status}'..."
+                f"Waiting {round(t_start + max_wait - time.time())}s "
+                + f"for {services} to reach '{status}'...",
+                "info",
             )
+            # Print the status of all services that still are monitored
+            for service in services:
+                log(f"{service} status {get_service_info(service, 'status')}", "info")
 
-    log(f"All services {status}")
+    log(f"All services {status}", "ok")
     return True
 
 
@@ -141,6 +148,7 @@ def start_service(service: str) -> bool:
 
     Returns True if successful, and False if service could not be started.
     """
+    log(f"Starting service '{service}*'", "info")
     run_scheduled_task(_get_schtask_name("START", service))
     return check_for_service_status(service, "running")
 
@@ -151,6 +159,7 @@ def stop_service(service: str) -> bool:
 
     Returns True if successful, and False if service could not be stopped.
     """
+    log(f"Stopping service '{service}*'", "info")
     run_scheduled_task(_get_schtask_name("STOP", service))
     return check_for_service_status(service, "stopped")
 
@@ -158,30 +167,28 @@ def stop_service(service: str) -> bool:
 def run_scheduled_task(name: str) -> None:
     """Runs the scheduled task with the input name"""
     try:
-        res = subprocess.check_output(
-            f"schtasks /run /tn {name}", stderr=subprocess.STDOUT
-        )
+        subprocess.check_output(f"schtasks /run /tn {name}", stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
         cmd_out = exc.output.decode()
         # Decide depending what's in the cmd output
         if "ERROR: The system cannot find the file specified" in cmd_out:
             # Schtasks does not exist, maybe it just hasn't been set up first
             msg = (
-                f"Error: The scheduled task '{name}' that handles the service "
+                f"The scheduled task '{name}' that handles the service "
                 "must be set up first.\n"
+                "                 "  # For correct intendation
                 "Please refer to the README, "
                 "or check the 'create-schtasks -h' command."
             )
-            log(msg)
+            log(msg, "error")
             # Exit with error code in this case
             sys.exit(1)
 
         # Some other error, log everything and rethrow the exception
-        log(cmd_out)
+        log(f"{cmd_out}", "error")
         raise exc
     else:
-        log(res.decode())  # TODO remove output here
-        log("Schtask run successfully")
+        log("Scheduled task successfully executed", "ok")
 
 
 def arg_parser() -> argparse.ArgumentParser:
