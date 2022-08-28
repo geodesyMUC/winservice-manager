@@ -155,18 +155,32 @@ def stop_service(service: str) -> bool:
     return check_for_service_status(service, "stopped")
 
 
-def run_scheduled_task(name: str):
+def run_scheduled_task(name: str) -> None:
     """Runs the scheduled task with the input name"""
     try:
         res = subprocess.check_output(
             f"schtasks /run /tn {name}", stderr=subprocess.STDOUT
         )
     except subprocess.CalledProcessError as exc:
-        # An error occurred, for example service does not exist
-        log(exc.output.decode())
+        cmd_out = exc.output.decode()
+        # Decide depending what's in the cmd output
+        if "ERROR: The system cannot find the file specified" in cmd_out:
+            # Schtasks does not exist, maybe it just hasn't been set up first
+            msg = (
+                f"Error: The scheduled task '{name}' that handles the service "
+                "must be set up first.\n"
+                "Please refer to the README, "
+                "or check the 'create-schtasks -h' command."
+            )
+            log(msg)
+            # Exit with error code in this case
+            sys.exit(1)
+
+        # Some other error, log everything and rethrow the exception
+        log(cmd_out)
         raise exc
     else:
-        log(res.decode())
+        log(res.decode())  # TODO remove output here
         log("Schtask run successfully")
 
 
