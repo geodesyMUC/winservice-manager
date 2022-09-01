@@ -101,7 +101,7 @@ def cmd_start_service() -> None:
     Exits with exit code 1 if service was not started successfully.
     """
     args = arg_parser().parse_args()
-    if not start_service(args.service_name):
+    if not start_service(args.service_name, args.waiting_time):
         sys.exit(1)
 
 
@@ -112,7 +112,7 @@ def cmd_stop_service() -> None:
     Exits with exit code 1 if service was not stopped successfully.
     """
     args = arg_parser().parse_args()
-    if not stop_service(args.service_name):
+    if not stop_service(args.service_name, args.waiting_time):
         sys.exit(1)
 
 
@@ -142,7 +142,7 @@ def get_service_info(service_name: str, key: str) -> str:
     return psutil.win_service_get(service_name).as_dict()[key]
 
 
-def start_service(service: str) -> bool:
+def start_service(service: str, max_wait_seconds: int) -> bool:
     """
     Starts a service by running the corresponding scheduled task.
 
@@ -150,10 +150,10 @@ def start_service(service: str) -> bool:
     """
     log(f"Starting service '{service}*'", "info")
     run_scheduled_task(_get_schtask_name("START", service))
-    return check_for_service_status(service, "running")
+    return check_for_service_status(service, "running", max_wait_seconds)
 
 
-def stop_service(service: str) -> bool:
+def stop_service(service: str, max_wait_seconds: int) -> bool:
     """
     Stops a service by running the corresponding scheduled tasks.
 
@@ -161,7 +161,7 @@ def stop_service(service: str) -> bool:
     """
     log(f"Stopping service '{service}*'", "info")
     run_scheduled_task(_get_schtask_name("STOP", service))
-    return check_for_service_status(service, "stopped")
+    return check_for_service_status(service, "stopped", max_wait_seconds)
 
 
 def run_scheduled_task(name: str) -> None:
@@ -199,4 +199,11 @@ def arg_parser() -> argparse.ArgumentParser:
         description="Manage services (start, stop, restart)"
     )
     parser.add_argument("service_name", type=str, help="name of the service")
+    parser.add_argument(
+        "-w",
+        "--wait",
+        type=int,
+        help="wait x seconds for the service to be started/stopped",
+        default=30,
+    )
     return parser
