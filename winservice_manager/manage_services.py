@@ -101,7 +101,7 @@ def cmd_start_service() -> None:
     Exits with exit code 1 if service was not started successfully.
     """
     args = arg_parser().parse_args()
-    if not start_service(args.service_name, args.waiting_time):
+    if not start_service(args.service_name, args.wait, args.quiet):
         sys.exit(1)
 
 
@@ -112,7 +112,7 @@ def cmd_stop_service() -> None:
     Exits with exit code 1 if service was not stopped successfully.
     """
     args = arg_parser().parse_args()
-    if not stop_service(args.service_name, args.waiting_time):
+    if not stop_service(args.service_name, args.wait, args.quiet):
         sys.exit(1)
 
 
@@ -142,24 +142,24 @@ def get_service_info(service_name: str, key: str) -> str:
     return psutil.win_service_get(service_name).as_dict()[key]
 
 
-def start_service(service: str, max_wait_seconds: int) -> bool:
+def start_service(service: str, max_wait_seconds: int, quiet: bool = True) -> bool:
     """
     Starts a service by running the corresponding scheduled task.
 
     Returns True if successful, and False if service could not be started.
     """
-    log(f"Starting service '{service}*'", "info")
+    log(f"Starting service '{service}*'", "info", quiet)
     run_scheduled_task(_get_schtask_name("START", service))
     return check_for_service_status(service, "running", max_wait_seconds)
 
 
-def stop_service(service: str, max_wait_seconds: int) -> bool:
+def stop_service(service: str, max_wait_seconds: int, quiet: bool = True) -> bool:
     """
     Stops a service by running the corresponding scheduled tasks.
 
     Returns True if successful, and False if service could not be stopped.
     """
-    log(f"Stopping service '{service}*'", "info")
+    log(f"Stopping service '{service}*'", "info", quiet)
     run_scheduled_task(_get_schtask_name("STOP", service))
     return check_for_service_status(service, "stopped", max_wait_seconds)
 
@@ -205,5 +205,8 @@ def arg_parser() -> argparse.ArgumentParser:
         type=int,
         help="wait x seconds for the service to be started/stopped",
         default=30,
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="suppress log messages"
     )
     return parser

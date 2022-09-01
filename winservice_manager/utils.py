@@ -3,7 +3,8 @@ Utility functions
 """
 import ctypes
 from dataclasses import dataclass
-from datetime import datetime
+import logging
+from typing import Optional
 from typing_extensions import Literal
 
 
@@ -25,22 +26,43 @@ def is_admin():
     return ctypes.windll.shell32.IsUserAnAdmin()
 
 
-def log(msg: str, tag: Literal["ok", "error", "warning", "info", ""] = "") -> None:
+def log(
+    msg: str,
+    tag: Literal["ok", "error", "warning", "info", ""] = "",
+    set_quiet: Optional[bool] = None,
+) -> None:
     """
     Prints a log message.
     Adds current time, and an optional colored tag to the message.
     """
-
-    if tag == "ok":
-        msg = BColors.OKGREEN + "[OK] " + BColors.ENDC + msg
+    logger = logging.getLogger("default")
+    if set_quiet:
+        # This will disable all prints
+        logger.propagate = False
+    elif set_quiet is not None:
+        # This will (re-)enable all prints
+        logger.propagate = True
 
     if tag == "error":
         msg = BColors.FAIL + "[ERROR] " + BColors.ENDC + msg
-
-    if tag == "warning":
+        logger.error(msg)
+    elif tag == "warning":
         msg = BColors.WARNING + "[WARNING] " + BColors.ENDC + msg
-
-    if tag == "info":
+        logger.warning(msg)
+    elif tag == "ok":
+        msg = BColors.OKGREEN + "[OK] " + BColors.ENDC + msg
+        logger.info(msg)
+    elif tag == "info":
         msg = BColors.OKBLUE + "[INFO] " + BColors.ENDC + msg
+        logger.info(msg)
+    else:
+        logger.debug(msg)
 
-    print(" ".join([datetime.strftime(datetime.now(), "%H:%M:%S"), msg]))
+
+# Set logging config
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[logging.StreamHandler()],
+)
