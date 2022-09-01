@@ -1,6 +1,6 @@
 # winservice-manager
 
-This project offers tools and scripts to manage Windows services.
+The `winservice-manager` project offers tools and scripts to both start and stop Windows services. This is done by creating, and running scheduled tasks to bypass the User Account Control (UAC) prompt. In this way, it is possible to bypass the prompt that requires manual user interaction, and start/stop Windows services in other automated tasks.
 
 ## Installation
 
@@ -24,12 +24,13 @@ poetry run COMMAND
 
 directly from the project directory.
 
-
 ## Introduction
 
 To start, restart, and stop Windows services, simple PowerShell commands such as `Start-Service` and `Stop-Service` can be used. However, they require elevated privileges, making it for example difficult to use them in automated scripts. The scripts contained in this project use scheduled tasks to bypass the necessity of having admin privileges each time starting, restarting, or stopping a Windows service.
 
 ## Usage
+
+### Setting up scheduled tasks
 
 Use the command
 
@@ -47,9 +48,20 @@ create-schtasks -h
 
 to learn more about the required input parameters of the command.
 
-Note that the "`*`" wildcard character is appended to the input service name.  In this way, it is possible to match multiple services at once by not using a complete service name.
+Note that the "`*`" wildcard character is appended to the input service name **automatically**.  In this way, it is possible to match multiple services at once by not using a complete service name. Example:
 
-### Start and stop services
+```console
+
+create-schtasks Xbl
+```
+
+will create scheduled tasks that start, or stop, respectively, all services starting with `Xbl`. You can make sure which services would be matched by running the following PowerShell command:
+
+```powershell
+Get-Service Xbl*
+```
+
+### Starting and stopping services
 
 Once the scheduled tasks are set up, you can start/stop the Windows service with the following commands:
 
@@ -58,6 +70,18 @@ start-winservice <SERVICE NAME>
 
 stop-winservice <SERVICE NAME>
 ```
+
+If a certain service takes more time until it is running, you can use the optional `--wait` argument to set a longer waiting time. The default waiting time is 30 seconds.
+
+Get more information about available arguments using:
+
+```console
+start-winservice -h
+```
+
+### Deleting the scheduled tasks
+
+Deleting scheduled tasks that were set up by `create-schtasks` is possible via the Task Scheduler UI. It is not implemented in this package.
 
 ## Author
 
