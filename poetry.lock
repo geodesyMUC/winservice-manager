@@ -291,6 +291,14 @@ optional = false
 python-versions = ">=3.6,<4.0"
 
 [[package]]
+name = "types-colorama"
+version = "0.4.15"
+description = "Typing stubs for colorama"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "types-psutil"
 version = "5.9.5"
 description = "Typing stubs for psutil"
@@ -325,7 +333,7 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "39b7b890ba831649c7906a50f30e6d9baaeb4d51530e9238b6ff43bbf59dd32b"
+content-hash = "572e223110f31ed3b2dea4911d910746ddf0cd25ca727c362f670adab8e921c9"
 
 [metadata.files]
 astroid = [
@@ -545,6 +553,10 @@ tomli = [
 tomlkit = [
     {file = "tomlkit-0.11.4-py3-none-any.whl", hash = "sha256:25d4e2e446c453be6360c67ddfb88838cfc42026322770ba13d1fbd403a93a5c"},
     {file = "tomlkit-0.11.4.tar.gz", hash = "sha256:3235a9010fae54323e727c3ac06fb720752fe6635b3426e379daec60fbd44a83"},
+]
+types-colorama = [
+    {file = "types-colorama-0.4.15.tar.gz", hash = "sha256:fd128b1e32f3fecec5f09df4366d21498ee86ea31fcf8b4e8f1ade6d0bbf9832"},
+    {file = "types_colorama-0.4.15-py3-none-any.whl", hash = "sha256:9cdc88dcde9e8ebafb2fdfaf5cee260452f93e5c57eb5d8b2a7f65b836d4e5d0"},
 ]
 types-psutil = [
     {file = "types-psutil-5.9.5.tar.gz", hash = "sha256:bef91de096b77ff7bc3a92bafe466ee55f842286c1d734658b7c26b259078253"},

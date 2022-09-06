@@ -2,23 +2,11 @@
 Utility functions
 """
 import ctypes
-from dataclasses import dataclass
 import logging
 from typing import Optional
 from typing_extensions import Literal
-
-
-@dataclass(frozen=True)
-class BColors:
-    """
-    Colors for colored stdout print
-    """
-
-    OKBLUE = "\033[94m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
+import colorama
+from colorama import Fore, Style
 
 
 def is_admin():
@@ -44,25 +32,29 @@ def log(
         logger.propagate = True
 
     if tag == "error":
-        msg = BColors.FAIL + "[ERROR] " + BColors.ENDC + msg
+        msg = Fore.RED + "[ERROR] " + Style.RESET_ALL + msg
         logger.error(msg)
     elif tag == "warning":
-        msg = BColors.WARNING + "[WARNING] " + BColors.ENDC + msg
+        msg = Fore.YELLOW + "[WARNING] " + Style.RESET_ALL + msg
         logger.warning(msg)
     elif tag == "ok":
-        msg = BColors.OKGREEN + "[OK] " + BColors.ENDC + msg
+        msg = Fore.GREEN + "[OK] " + Style.RESET_ALL + msg
         logger.info(msg)
     elif tag == "info":
-        msg = BColors.OKBLUE + "[INFO] " + BColors.ENDC + msg
+        msg = Fore.BLUE + "[INFO] " + Style.RESET_ALL + msg
         logger.info(msg)
     else:
+        # Everything else is a debug message
         logger.debug(msg)
 
 
-# Set logging config
+# Set logging config (logger named "default")
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s %(message)s",
     datefmt="%H:%M:%S",
     handlers=[logging.StreamHandler()],
 )
+
+# Set up colorama for colored strings
+colorama.init()
