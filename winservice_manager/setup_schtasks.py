@@ -27,7 +27,8 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
 
     The created task runs ONEVENT, but with a dummy event.
     """
-    task = f"PowerShell.exe -WindowStyle hidden -File {path} {service_name}"
+    joined_service_names = " ".join(service_name)
+    task = f"PowerShell.exe -WindowStyle hidden -File {path} {joined_service_names}"
     command = [
         "schtasks.exe",
         "/CREATE",
@@ -76,7 +77,13 @@ def arg_parser() -> argparse.ArgumentParser:
         Must be run with admin privileges.
         """
     )
-    parser.add_argument("service_name", type=str, help="name of the service")
+    parser.add_argument("task_name", type=str, help="identifier for the task")
+    parser.add_argument(
+        "service_names",
+        type=str,
+        help="name of service(s) managed by the task",
+        nargs="+",
+    )
     return parser
 
 
@@ -94,7 +101,7 @@ def main(
 
     # Parse the input arguments
     args = arg_parser().parse_args()
-    log(f"Creating scheduled tasks for '{args.service_name}*'", "info")
+    log(f"Creating scheduled tasks for services {args.service_names}", "info")
 
     if not is_admin():
         # Scheduled tasks can ONLY be created as admin
@@ -102,13 +109,13 @@ def main(
         return
 
     create_scheduled_script_task(
-        args.service_name,
-        _get_schtask_name("START", args.service_name),
+        args.service_names,
+        _get_schtask_name("START", args.task_name),
         path_start_wservice_script,
     )
     create_scheduled_script_task(
-        args.service_name,
-        _get_schtask_name("STOP", args.service_name),
+        args.service_names,
+        _get_schtask_name("STOP", args.task_name),
         path_stop_wservice_script,
     )
 
