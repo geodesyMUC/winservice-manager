@@ -2,7 +2,7 @@
 authors = ["Dav <50445297+geodesyMUC@users.noreply.github.com>"]
 description = "Scripts for managing Windows Services, using scheduled tasks"
 name = "winservice-manager"
-version = "0.4.1"
+version = "0.4.2"
 
 [tool.poetry.scripts]
 create-schtasks = "winservice_manager.setup_schtasks:main"
@@ -16,6 +16,7 @@ psutil = "^5.9.1"
 types-psutil = "^5.9.5"
 types-colorama = "^0.4.15"
 typing-extensions = "^4.3.0"
+colorama = "^0.4.5"
 
 [tool.poetry.dev-dependencies]
 black = "^22.6.0"
