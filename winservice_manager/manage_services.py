@@ -14,8 +14,37 @@ from winservice_manager.setup_schtasks import _get_schtask_name
 from winservice_manager.utils import log
 
 
+def _check_if_task_not_exists(schtask_name: str, cmd_out: str) -> bool:
+    if "ERROR: The system cannot find the file specified" not in cmd_out:
+        # Some different error
+        return False
+
+    # Schtasks does not exist, maybe it just hasn't been set up first?
+    msg = (
+        f"The scheduled task '{schtask_name}' that handles the service "
+        "must be set up first.\n"
+        "                 "  # For correct intendation
+        "Please refer to the README, "
+        "or check out the 'create-schtasks -h' command."
+    )
+    log(msg, "error")
+    return True
+
+
+def _parse_service_from_schtasks_vquery(schtask_name: str) -> List[str]:
+    # Helper function that returns the task name from the
+    # START- and/or STOP winservice scheduled task verbose query
+    vquery_out = query_scheduled_task(schtask_name)
+    task_to_run = vquery_out.splitlines()[10]
+    task_parts = task_to_run.split()
+    # Since we have a known number of task parts,
+    # we can cut off everything that is not a service name
+    # and assume the rest are service names
+    return task_parts[8:]
+
+
 def check_for_service_status(
-    service_name: str, status: str, max_wait: int = 30
+    service_names: List[str], status: str, max_wait: int = 30
 ) -> bool:
     """
     Waits until all services that match the service name have the target status
@@ -34,9 +63,9 @@ def check_for_service_status(
             f"Target service status {status} not in allowed values: {allowed_statuses}"
         )
     # Get the services of interest, and return if there aren't any
-    services = get_matching_services(service_name)
+    services = get_matching_services(service_names)
     if not services:
-        log(f"No matching service(s) '{service_name}' found to check", "error")
+        log(f"No matching service(s) {service_names} found to check", "error")
         return False
 
     # Initialise the list of services that are ok (have target status)
@@ -116,18 +145,18 @@ def cmd_stop_service() -> None:
         sys.exit(1)
 
 
-def get_matching_services(service_name: str) -> List[str]:
+def get_matching_services(service_names: List[str]) -> List[str]:
     """
-    Returns a list of service names that match the input service name
-    plus the '*' wildcard character
+    Returns a list of service names that match input service names
     """
     matched_services = []
-    for service in psutil.win_service_iter():  # type: ignore
-        if not fnmatch.fnmatch(service.name(), f"{service_name}*"):
-            continue
-        # The service matches service name,
-        # plus wildcard (Unix filename pattern matching)
-        matched_services.append(service.name())
+    for input_service in service_names:
+        for service in psutil.win_service_iter():  # type: ignore
+            if not fnmatch.fnmatch(service.name(), input_service):
+                continue
+            # The service matches service name,
+            # plus wildcard (Unix filename pattern matching)
+            matched_services.append(service.name())
 
     return matched_services
 
@@ -142,26 +171,32 @@ def get_service_info(service_name: str, key: str) -> str:
     return psutil.win_service_get(service_name).as_dict()[key]
 
 
-def start_service(service: str, max_wait_seconds: int, quiet: bool = True) -> bool:
+def start_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> bool:
     """
-    Starts a service by running the corresponding scheduled task.
+    Starts a service by running the corresponding scheduled task,
+    identified by the custom task name.
 
     Returns True if successful, and False if service could not be started.
     """
-    log(f"Starting service '{service}*'", "info", quiet)
-    run_scheduled_task(_get_schtask_name("START", service))
-    return check_for_service_status(service, "running", max_wait_seconds)
+    schtask_name = _get_schtask_name("START", task_name)
+    services = _parse_service_from_schtasks_vquery(schtask_name)
+    log(f"Starting service(s) {services}", "info", quiet)
+    run_scheduled_task(schtask_name)
+    return check_for_service_status(services, "running", max_wait_seconds)
 
 
-def stop_service(service: str, max_wait_seconds: int, quiet: bool = True) -> bool:
+def stop_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> bool:
     """
-    Stops a service by running the corresponding scheduled tasks.
+    Stops a service by running the corresponding scheduled tasks,
+    identified by the custom task name.
 
     Returns True if successful, and False if service could not be stopped.
     """
-    log(f"Stopping service '{service}*'", "info", quiet)
-    run_scheduled_task(_get_schtask_name("STOP", service))
-    return check_for_service_status(service, "stopped", max_wait_seconds)
+    schtask_name = _get_schtask_name("STOP", task_name)
+    services = _parse_service_from_schtasks_vquery(schtask_name)
+    log(f"Stopping service(s) {services}", "info", quiet)
+    run_scheduled_task(schtask_name)
+    return check_for_service_status(services, "stopped", max_wait_seconds)
 
 
 def run_scheduled_task(name: str) -> None:
@@ -169,26 +204,33 @@ def run_scheduled_task(name: str) -> None:
     try:
         subprocess.check_output(f"schtasks /run /tn {name}", stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
-        cmd_out = exc.output.decode()
-        # Decide depending what's in the cmd output
-        if "ERROR: The system cannot find the file specified" in cmd_out:
-            # Schtasks does not exist, maybe it just hasn't been set up first
-            msg = (
-                f"The scheduled task '{name}' that handles the service "
-                "must be set up first.\n"
-                "                 "  # For correct intendation
-                "Please refer to the README, "
-                "or check the 'create-schtasks -h' command."
-            )
-            log(msg, "error")
+        if _check_if_task_not_exists(name, exc.output.decode()):
             # Exit with error code in this case
             sys.exit(1)
 
         # Some other error, log everything and rethrow the exception
-        log(f"{cmd_out}", "error")
+        log(f"{exc.output.decode()}", "error")
         raise exc
     else:
         log("Scheduled task successfully executed", "ok")
+
+
+def query_scheduled_task(name: str) -> str:
+    """Queries scheduled task, returns output formatted as a list"""
+    try:
+        out = subprocess.check_output(
+            f"schtasks /query /v /fo LIST /tn {name}", stderr=subprocess.STDOUT
+        )
+    except subprocess.CalledProcessError as exc:
+        if _check_if_task_not_exists(name, exc.output.decode()):
+            # Exit with error code in this case
+            sys.exit(1)
+
+        # Some other error, log everything and rethrow the exception
+        log(f"{exc.output.decode()}", "error")
+        raise exc
+    # Since we get a raw str, we need to decode the output
+    return out.decode()
 
 
 def arg_parser() -> argparse.ArgumentParser:
