@@ -3,8 +3,6 @@ Utility functions
 """
 import ctypes
 import logging
-from typing import Optional
-from typing_extensions import Literal
 import colorama
 from colorama import Fore, Style
 
@@ -14,47 +12,46 @@ def is_admin():
     return ctypes.windll.shell32.IsUserAnAdmin()
 
 
-def log(
-    msg: str,
-    tag: Literal["ok", "error", "warning", "info", ""] = "",
-    set_quiet: Optional[bool] = None,
-) -> None:
+class ScriptLoggingFormatter(logging.Formatter):
     """
-    Prints a log message.
-    Adds current time, and an optional colored tag to the message.
+    Custom formatter for logging of scripts in this package
     """
-    logger = logging.getLogger("default")
-    if set_quiet:
-        # This will disable all prints
-        logger.propagate = False
-    elif set_quiet is not None:
-        # This will (re-)enable all prints
-        logger.propagate = True
 
-    if tag == "error":
-        msg = Fore.RED + "[ERROR] " + Style.RESET_ALL + msg
-        logger.error(msg)
-    elif tag == "warning":
-        msg = Fore.YELLOW + "[WARNING] " + Style.RESET_ALL + msg
-        logger.warning(msg)
-    elif tag == "ok":
-        msg = Fore.GREEN + "[OK] " + Style.RESET_ALL + msg
-        logger.info(msg)
-    elif tag == "info":
-        msg = Fore.BLUE + "[INFO] " + Style.RESET_ALL + msg
-        logger.info(msg)
-    else:
-        # Everything else is a debug message
-        logger.debug(msg)
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Adds a colored tag ([TAG]) to log messages,
+        depending on the log level
+        """
+        if record.levelno == logging.ERROR:
+            record.msg = Fore.RED + "[ERROR] " + Style.RESET_ALL + record.msg
+        elif record.levelno == logging.WARNING:
+            record.msg = Fore.YELLOW + "[WARNING] " + Style.RESET_ALL + record.msg
+        elif record.levelno == logging.INFO:
+            record.msg = Fore.GREEN + "[OK] " + Style.RESET_ALL + record.msg
+        elif record.levelno == logging.DEBUG:
+            record.msg = Fore.CYAN + "[INFO] " + Style.RESET_ALL + record.msg
+        return super().format(record)
 
 
-# Set logging config (logger named "default")
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(message)s",
-    datefmt="%H:%M:%S",
-    handlers=[logging.StreamHandler()],
-)
+def setup_script_logger(logger_name: str = __name__) -> None:
+    """
+    Sets up the logger for scripts in this package
+    """
+
+    # Set logging config with logger named according to the input name
+    logger = logging.getLogger(logger_name)
+
+    # We want ALL log messages for the script log messages, so use debug level
+    logger.setLevel(logging.DEBUG)
+
+    stream_h = logging.StreamHandler()
+    stream_h.setLevel(logging.DEBUG)
+    formatter = ScriptLoggingFormatter("%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    stream_h.setFormatter(formatter)
+
+    # Finally, add the handler to logger
+    logger.addHandler(stream_h)
+
 
 # Set up colorama for colored strings
 colorama.init()
