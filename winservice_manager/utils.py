@@ -7,6 +7,10 @@ import colorama
 from colorama import Fore, Style
 
 
+class WinServiceManagerError(Exception):
+    """Custom exceptions raised in this package"""
+
+
 def is_admin():
     """Returns true if script is running with admin priviledges"""
     return ctypes.windll.shell32.IsUserAnAdmin()

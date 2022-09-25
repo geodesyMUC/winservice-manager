@@ -12,25 +12,18 @@ import psutil
 
 # Local imports
 from winservice_manager.setup_schtasks import _get_schtask_name
-from winservice_manager.utils import setup_script_logger
+from winservice_manager.utils import setup_script_logger, WinServiceManagerError
 
 logger = logging.getLogger(__name__)
 
 
-def _check_if_task_not_exists(schtask_name: str, cmd_out: str) -> bool:
+def _is_task_not_exist_error(cmd_out: str) -> bool:
+    # Check cmd out string and match expected error message
     if "ERROR: The system cannot find the file specified" not in cmd_out:
         # Some different error
         return False
 
     # Schtasks does not exist, maybe it just hasn't been set up first?
-    msg = (
-        f"The scheduled task '{schtask_name}' that handles the service "
-        "must be set up first.\n"
-        "                 "  # For correct intendation
-        "Please refer to the README, "
-        "or check out the 'create-schtasks -h' command."
-    )
-    logger.error(msg)
     return True
 
 
@@ -118,7 +111,9 @@ def check_for_service_status(
             )
             # Print the status of all services that still are monitored
             for service in services:
-                logger.debug("%s status %s", service, get_service_info(service, 'status'))
+                logger.debug(
+                    "%s status %s", service, get_service_info(service, "status")
+                )
 
     logger.info("All services %s", status)
     return True
@@ -135,8 +130,12 @@ def cmd_start_service() -> None:
         # Not setting up the logger -> no log messages
         setup_script_logger(__name__)
 
-    if not start_service(args.service_name, args.wait):
-        sys.exit(1)
+    try:
+        if not start_service(args.service_name, args.wait):
+            sys.exit(1)
+    except WinServiceManagerError:
+        # Raised when scheduled task does not exist (most likely)
+        sys.exit(6)
 
 
 def cmd_stop_service() -> None:
@@ -149,8 +148,12 @@ def cmd_stop_service() -> None:
     if not args.quiet:
         setup_script_logger(__name__)
 
-    if not stop_service(args.service_name, args.wait):
-        sys.exit(1)
+    try:
+        if not stop_service(args.service_name, args.wait):
+            sys.exit(1)
+    except WinServiceManagerError:
+        # Raised when scheduled task does not exist (most likely)
+        sys.exit(6)
 
 
 def get_matching_services(service_names: List[str]) -> List[str]:
@@ -212,13 +215,16 @@ def run_scheduled_task(name: str) -> None:
     try:
         subprocess.check_output(f"schtasks /run /tn {name}", stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
-        if _check_if_task_not_exists(name, exc.output.decode()):
-            # Exit with error code in this case
-            sys.exit(1)
+        if not _is_task_not_exist_error(exc.output.decode()):
+            # Some other error, log everything and rethrow the exception
+            logger.error("%s", exc.output.decode())
+            raise exc
 
-        # Some other error, log everything and rethrow the exception
-        logger.error("%s", exc.output.decode())
-        raise exc
+        # Expected error if task does not exist
+        raise WinServiceManagerError(
+            f"Scheduled task '{name}' could not be found. "
+            "Check the Task Scheduler if it exists."
+        ) from exc
     else:
         logger.debug("Scheduled task successfully executed")
 
@@ -230,13 +236,29 @@ def query_scheduled_task(name: str) -> str:
             f"schtasks /query /v /fo LIST /tn {name}", stderr=subprocess.STDOUT
         )
     except subprocess.CalledProcessError as exc:
-        if _check_if_task_not_exists(name, exc.output.decode()):
-            # Exit with error code in this case
-            sys.exit(1)
+        if not _is_task_not_exist_error(exc.output.decode()):
+            # Some other error, log everything and rethrow the exception
+            logger.error("%s", exc.output.decode())
+            raise exc
 
-        # Some other error, log everything and rethrow the exception
-        logger.error("%s", exc.output.decode())
-        raise exc
+        # We expect this error if the schtask does not exist
+        # Log helpful information for the user ...
+        msg = (
+            f"The scheduled task '{name}' that handles the service "
+            "could not be found.\n"
+            "                 "  # For correct intendation
+            "Make sure that it exists in the Task Scheduler library.\n"
+            "                 "  # For correct intendation
+            "Please refer to the README for further information, "
+            "or check out the 'create-schtasks -h' command."
+        )
+        logger.error(msg)
+        # ... and then raise a custom exception
+        raise WinServiceManagerError(
+            f"Scheduled task '{name}' could not be found. "
+            "Check the Task Scheduler if it exists."
+        ) from exc
+
     # Since we get a raw str, we need to decode the output
     return out.decode()
 
