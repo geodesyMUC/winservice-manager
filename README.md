@@ -73,7 +73,7 @@ create-schtasks xblsvc Xbl*
 
 with `xblsvc` being a descriptive name that you can choose freely.
 
-This command will set up two scheduled tasks, named `START-xblsvc` and `STOP-xblscv`. They start, and stop, respectively, all services starting with `Xbl`. You can make sure which services would be matched in this example by running the following PowerShell command:
+This command will set up two scheduled tasks, named `START-xblsvc` and `STOP-xblsvc`. They start, and stop, respectively, all services starting with `Xbl`. You can make sure which services would be matched in this example by running the following PowerShell command:
 
 ```powershell
 Get-Service Xbl*

@@ -2,6 +2,7 @@
 Manage Windows services by running scheduled tasks
 """
 import argparse
+import logging
 import subprocess
 from typing import List
 import fnmatch
@@ -11,23 +12,18 @@ import psutil
 
 # Local imports
 from winservice_manager.setup_schtasks import _get_schtask_name
-from winservice_manager.utils import log
+from winservice_manager.utils import setup_script_logger, WinServiceManagerError
+
+logger = logging.getLogger(__name__)
 
 
-def _check_if_task_not_exists(schtask_name: str, cmd_out: str) -> bool:
+def _is_task_not_exist_error(cmd_out: str) -> bool:
+    # Check cmd out string and match expected error message
     if "ERROR: The system cannot find the file specified" not in cmd_out:
         # Some different error
         return False
 
     # Schtasks does not exist, maybe it just hasn't been set up first?
-    msg = (
-        f"The scheduled task '{schtask_name}' that handles the service "
-        "must be set up first.\n"
-        "                 "  # For correct intendation
-        "Please refer to the README, "
-        "or check out the 'create-schtasks -h' command."
-    )
-    log(msg, "error")
     return True
 
 
@@ -65,7 +61,7 @@ def check_for_service_status(
     # Get the services of interest, and return if there aren't any
     services = get_matching_services(service_names)
     if not services:
-        log(f"No matching service(s) {service_names} found to check", "error")
+        logger.error("No matching service(s) %s found to check", service_names)
         return False
 
     # Initialise the list of services that are ok (have target status)
@@ -80,17 +76,16 @@ def check_for_service_status(
         # To prevent an infinite loop if some service doesn't ever
         # reach the target status
         if time.time() > t_start + max_wait:
-            log(
+            logger.error(
                 f"Timeout while waiting for {services}"
-                + f" to reach target status '{status}'",
-                "error",
+                + f" to reach target status '{status}'"
             )
             return False
 
         # Find out which services are already ok
         for service in services:
             if get_service_info(service, "status") == status:
-                log(f"Service {service} {status}", "ok")
+                logger.info("Service %s %s", service, status)
                 # Add it to the list of services that are ok
                 services_ok.append(service)
                 continue
@@ -110,16 +105,17 @@ def check_for_service_status(
         if len(services) != 0 and waiting_time % 5 == 0:
             # Only print this every 5s
             # and if there are still services that we are waiting for
-            log(
+            logger.debug(
                 f"Waiting {round(t_start + max_wait - time.time())}s "
                 + f"for {services} to reach '{status}'...",
-                "info",
             )
             # Print the status of all services that still are monitored
             for service in services:
-                log(f"{service} status {get_service_info(service, 'status')}", "info")
+                logger.debug(
+                    "%s status %s", service, get_service_info(service, "status")
+                )
 
-    log(f"All services {status}", "ok")
+    logger.info("All services %s", status)
     return True
 
 
@@ -130,8 +126,16 @@ def cmd_start_service() -> None:
     Exits with exit code 1 if service was not started successfully.
     """
     args = arg_parser().parse_args()
-    if not start_service(args.service_name, args.wait, args.quiet):
-        sys.exit(1)
+    if not args.quiet:
+        # Not setting up the logger -> no log messages
+        setup_script_logger(__name__)
+
+    try:
+        if not start_service(args.service_name, args.wait):
+            sys.exit(1)
+    except WinServiceManagerError:
+        # Raised when scheduled task does not exist (most likely)
+        sys.exit(6)
 
 
 def cmd_stop_service() -> None:
@@ -141,8 +145,15 @@ def cmd_stop_service() -> None:
     Exits with exit code 1 if service was not stopped successfully.
     """
     args = arg_parser().parse_args()
-    if not stop_service(args.service_name, args.wait, args.quiet):
-        sys.exit(1)
+    if not args.quiet:
+        setup_script_logger(__name__)
+
+    try:
+        if not stop_service(args.service_name, args.wait):
+            sys.exit(1)
+    except WinServiceManagerError:
+        # Raised when scheduled task does not exist (most likely)
+        sys.exit(6)
 
 
 def get_matching_services(service_names: List[str]) -> List[str]:
@@ -171,7 +182,7 @@ def get_service_info(service_name: str, key: str) -> str:
     return psutil.win_service_get(service_name).as_dict()[key]
 
 
-def start_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> bool:
+def start_service(task_name: str, max_wait_seconds: int) -> bool:
     """
     Starts a service by running the corresponding scheduled task,
     identified by the custom task name.
@@ -180,12 +191,12 @@ def start_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> 
     """
     schtask_name = _get_schtask_name("START", task_name)
     services = _parse_service_from_schtasks_vquery(schtask_name)
-    log(f"Starting service(s) {services}", "info", quiet)
+    logger.debug("Starting service(s) %s", services)
     run_scheduled_task(schtask_name)
     return check_for_service_status(services, "running", max_wait_seconds)
 
 
-def stop_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> bool:
+def stop_service(task_name: str, max_wait_seconds: int) -> bool:
     """
     Stops a service by running the corresponding scheduled tasks,
     identified by the custom task name.
@@ -194,7 +205,7 @@ def stop_service(task_name: str, max_wait_seconds: int, quiet: bool = True) -> b
     """
     schtask_name = _get_schtask_name("STOP", task_name)
     services = _parse_service_from_schtasks_vquery(schtask_name)
-    log(f"Stopping service(s) {services}", "info", quiet)
+    logger.info("Stopping service(s) %s", services)
     run_scheduled_task(schtask_name)
     return check_for_service_status(services, "stopped", max_wait_seconds)
 
@@ -204,15 +215,18 @@ def run_scheduled_task(name: str) -> None:
     try:
         subprocess.check_output(f"schtasks /run /tn {name}", stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
-        if _check_if_task_not_exists(name, exc.output.decode()):
-            # Exit with error code in this case
-            sys.exit(1)
+        if not _is_task_not_exist_error(exc.output.decode()):
+            # Some other error, log everything and rethrow the exception
+            logger.error("%s", exc.output.decode())
+            raise exc
 
-        # Some other error, log everything and rethrow the exception
-        log(f"{exc.output.decode()}", "error")
-        raise exc
+        # Expected error if task does not exist
+        raise WinServiceManagerError(
+            f"Scheduled task '{name}' could not be found. "
+            "Check the Task Scheduler if it exists."
+        ) from exc
     else:
-        log("Scheduled task successfully executed", "ok")
+        logger.debug("Scheduled task successfully executed")
 
 
 def query_scheduled_task(name: str) -> str:
@@ -222,13 +236,29 @@ def query_scheduled_task(name: str) -> str:
             f"schtasks /query /v /fo LIST /tn {name}", stderr=subprocess.STDOUT
         )
     except subprocess.CalledProcessError as exc:
-        if _check_if_task_not_exists(name, exc.output.decode()):
-            # Exit with error code in this case
-            sys.exit(1)
+        if not _is_task_not_exist_error(exc.output.decode()):
+            # Some other error, log everything and rethrow the exception
+            logger.error("%s", exc.output.decode())
+            raise exc
 
-        # Some other error, log everything and rethrow the exception
-        log(f"{exc.output.decode()}", "error")
-        raise exc
+        # We expect this error if the schtask does not exist
+        # Log helpful information for the user ...
+        msg = (
+            f"The scheduled task '{name}' that handles the service "
+            "could not be found.\n"
+            "                 "  # For correct intendation
+            "Make sure that it exists in the Task Scheduler library.\n"
+            "                 "  # For correct intendation
+            "Please refer to the README for further information, "
+            "or check out the 'create-schtasks -h' command."
+        )
+        logger.error(msg)
+        # ... and then raise a custom exception
+        raise WinServiceManagerError(
+            f"Scheduled task '{name}' could not be found. "
+            "Check the Task Scheduler if it exists."
+        ) from exc
+
     # Since we get a raw str, we need to decode the output
     return out.decode()
 

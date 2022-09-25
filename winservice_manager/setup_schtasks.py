@@ -4,10 +4,13 @@ Functions to set up scheduled tasks
 import argparse
 import subprocess
 import os
+import logging
 from pathlib import Path
 
 # Local packages
-from winservice_manager.utils import is_admin, log
+from winservice_manager.utils import is_admin, setup_script_logger
+
+logger = logging.getLogger(__name__)
 
 
 def _get_schtask_name(task: str, service: str) -> str:
@@ -60,10 +63,10 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
 
     # English locale only
     if "SUCCESS" in stdout:
-        log(f"Scheduled task '{task_name}' created successfully", "ok")
+        logger.info("Scheduled task '%s' created successfully", task_name)
         return
 
-    log(f"Scheduled task '{task_name}' could not be created", "error")
+    logger.error("Scheduled task '%s' could not be created", task_name)
     return
 
 
@@ -98,14 +101,15 @@ def main(
     """
     Main function
     """
+    setup_script_logger(__name__)
 
     # Parse the input arguments
     args = arg_parser().parse_args()
-    log(f"Creating scheduled tasks for services {args.service_names}", "info")
+    logger.debug("Creating scheduled tasks for services %s", args.service_names)
 
     if not is_admin():
         # Scheduled tasks can ONLY be created as admin
-        log("You must run this as admin!", "error")
+        logger.error("You must run this as admin!")
         return
 
     create_scheduled_script_task(
@@ -119,7 +123,7 @@ def main(
         path_stop_wservice_script,
     )
 
-    log("Scheduled tasks created", "ok")
+    logger.info("Scheduled tasks created")
 
 
 if __name__ == "__main__":
