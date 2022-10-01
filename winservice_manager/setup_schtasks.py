@@ -6,9 +6,14 @@ import subprocess
 import os
 import logging
 from pathlib import Path
+from typing import List
 
 # Local packages
-from winservice_manager.utils import is_admin, setup_script_logger
+from winservice_manager.utils import (
+    is_admin,
+    setup_script_logger,
+    WinServiceManagerError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +24,32 @@ def _get_schtask_name(task: str, service: str) -> str:
     return "-".join([task, service])
 
 
-def create_scheduled_script_task(service_name: str, task_name: str, path: str) -> None:
+def create_schtask(
+    service_names: List[str], task_name: str, path: str, task_name_prefix: str = ""
+) -> None:
     """
-    Creates scheduled task with the input name,
-    running a powershell script at the input path.
+    Creates scheduled task to start input service(s) by running
+    the PowerShell script at the input location.
+    The scheduled task will be named using a prefix, and the input task name.
+    """
+    command = create_schtask_cmd(
+        service_names,
+        _get_schtask_name(task_name_prefix, task_name),
+        path,
+    )
+    if not _run_schtask_create_cmd(command):
+        logger.error("Scheduled task '%s' could not be created", task_name)
+        raise WinServiceManagerError("Could not create scheduled task.")
+    logger.info("Scheduled task '%s' created successfully", task_name)
+
+
+def create_schtask_cmd(
+    service_names: List[str], task_name: str, path: str
+) -> List[str]:
+    """
+    Sets up the command to create a scheduled task. The command
+    will be returned as a list of strings, which works best for
+    subprocess.Popen().
 
     Command: schtasks /create [...]
 
@@ -30,7 +57,7 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
 
     The created task runs ONEVENT, but with a dummy event.
     """
-    joined_service_names = " ".join(service_name)
+    joined_service_names = " ".join(service_names)
     task = f"PowerShell.exe -WindowStyle hidden -File {path} {joined_service_names}"
     command = [
         "schtasks.exe",
@@ -38,7 +65,7 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
         "/SC",
         "ONEVENT",
         "/TN",
-        f"{task_name}",
+        task_name,
         "/TR",
         task,
         "/RL",
@@ -50,24 +77,27 @@ def create_scheduled_script_task(service_name: str, task_name: str, path: str) -
         "/F",
     ]
 
-    # Add run as username to cmd (if possible)
+    # Add run as username to cmd (if username env variable exists)
     user = os.getenv("USERNAME")
     if user:
         command.insert(10, "/RU")
         command.insert(11, user)
+    return command
 
-    with subprocess.Popen(
-        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-    ) as proc:
+
+def _run_schtask_create_cmd(command: List[str]) -> bool:
+    # Run the command to create a scheduled task
+    with subprocess.Popen(command, stdout=subprocess.PIPE) as proc:
         stdout = proc.communicate()[0].decode()
 
-    # English locale only
+    # Looking for this string only works with english locale!
+    # Other locales will not be recognized as successful
     if "SUCCESS" in stdout:
-        logger.info("Scheduled task '%s' created successfully", task_name)
-        return
+        return True
 
-    logger.error("Scheduled task '%s' could not be created", task_name)
-    return
+    # Schtasks could not be created
+    logger.debug("Schtasks create command '%s'", " ".join(command))
+    return False
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -112,17 +142,15 @@ def main(
         logger.error("You must run this as admin!")
         return
 
-    create_scheduled_script_task(
-        args.service_names,
-        _get_schtask_name("START", args.task_name),
-        path_start_wservice_script,
+    # Scheduled task to START services
+    create_schtask(
+        args.service_names, args.task_name, path_start_wservice_script, "START"
     )
-    create_scheduled_script_task(
-        args.service_names,
-        _get_schtask_name("STOP", args.task_name),
-        path_stop_wservice_script,
+    # Scheduled task to STOP services
+    create_schtask(
+        args.service_names, args.task_name, path_stop_wservice_script, "STOP"
     )
-
+    # Done!
     logger.info("Scheduled tasks created")
 
 

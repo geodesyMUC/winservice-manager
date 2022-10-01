@@ -22,3 +22,6 @@ dmypy.json
 
 # test scripts
 **/testing
+
+# pytest
+**/.pytest_cache

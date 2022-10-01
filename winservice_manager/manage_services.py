@@ -27,10 +27,9 @@ def _is_task_not_exist_error(cmd_out: str) -> bool:
     return True
 
 
-def _parse_service_from_schtasks_vquery(schtask_name: str) -> List[str]:
+def _parse_service_from_schtasks_vquery(vquery_out: str) -> List[str]:
     # Helper function that returns the task name from the
-    # START- and/or STOP winservice scheduled task verbose query
-    vquery_out = query_scheduled_task(schtask_name)
+    # START- and/or STOP winservice scheduled task verbose query output
     task_to_run = vquery_out.splitlines()[10]
     task_parts = task_to_run.split()
     # Since we have a known number of task parts,
@@ -190,7 +189,8 @@ def start_service(task_name: str, max_wait_seconds: int) -> bool:
     Returns True if successful, and False if service could not be started.
     """
     schtask_name = _get_schtask_name("START", task_name)
-    services = _parse_service_from_schtasks_vquery(schtask_name)
+    vquery_out = query_scheduled_task(schtask_name)
+    services = _parse_service_from_schtasks_vquery(vquery_out)
     logger.debug("Starting service(s) %s", services)
     run_scheduled_task(schtask_name)
     return check_for_service_status(services, "running", max_wait_seconds)
@@ -204,7 +204,8 @@ def stop_service(task_name: str, max_wait_seconds: int) -> bool:
     Returns True if successful, and False if service could not be stopped.
     """
     schtask_name = _get_schtask_name("STOP", task_name)
-    services = _parse_service_from_schtasks_vquery(schtask_name)
+    vquery_out = query_scheduled_task(schtask_name)
+    services = _parse_service_from_schtasks_vquery(vquery_out)
     logger.info("Stopping service(s) %s", services)
     run_scheduled_task(schtask_name)
     return check_for_service_status(services, "stopped", max_wait_seconds)
