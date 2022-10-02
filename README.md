@@ -51,7 +51,6 @@ in order to set up the required scheduled tasks for the services that are later 
 
 Security advice: Please make sure to only match the services you actually mean to match, and no other services by accident.
 
-
 The `create-schtasks` command needs to be run only once, but **with elevated privileges!** After a successful run, the scheduled tasks created can be managed in the graphical UI of the Task Scheduler. They are named:
 
 - `START-<TASK NAME>`
@@ -78,6 +77,8 @@ This command will set up two scheduled tasks, named `START-xblsvc` and `STOP-xbl
 ```powershell
 Get-Service Xbl*
 ```
+
+Note that this command will only work if you are using the english locale.
 
 ### Starting and stopping services
 
